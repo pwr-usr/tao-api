@@ -8,7 +8,7 @@ def check_response(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         response = func(*args, **kwargs)
-        assert response.status_code in (200, 201), f"API call failed with status code {response.status_code}"
+        assert response.status_code in (200, 201, 206), f"API call failed with status code {response.status_code}"
         return response
     return wrapper
 
@@ -29,6 +29,12 @@ def delete_request(url, headers):
     return requests.delete(url, headers=headers)
 
 def get_user_token(base_url, ngc_api_key):
+    """
+    :param base_url:
+    :param ngc_api_key:
+    :return user_id:
+    :return JWT token:
+    """
     data = json.dumps({"ngc_api_key": ngc_api_key})
     response = post_request(f"{base_url}/api/v1/login", data=data)
     assert "user_id" in response.json().keys()

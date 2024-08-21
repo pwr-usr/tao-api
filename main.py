@@ -1,18 +1,18 @@
-import os
-import json
 from config import *
-from datasets.dataset_utils import prepare_dataset, split_tar_file
+from dataset_utils import prepare_dataset, split_tar_file
 from api_utils import get_user_token
 from model_actions import *
-
+from utils import *
 
 def main():
     # Setup
     user_id, token = get_user_token(HOST_URL, NGC_API_KEY)
     base_url = f"{HOST_URL}/api/v1/users/{user_id}"
     headers = {"Authorization": f"Bearer {token}"}
-
+    print(base_url, headers)
     # Prepare dataset
+    create_work_dir(WORKDIR)
+
     prepare_dataset(DATA_DIR, f"{DATA_DIR}/split/images_train", f"{DATA_DIR}/split/images_val",
                     f"{DATA_DIR}/split/images_test")
 
