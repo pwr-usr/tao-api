@@ -1,52 +1,64 @@
 import os
 import glob
 import shutil
-import random
 from tqdm import tqdm
-import tarfile
+import random
 from collections import defaultdict
+import tarfile
+from config import DS_TYPE, DS_FORMAT
+from api_utils import create_dataset, upload_dataset, update_dataset
+import requests
 
 
-def split_tar_file(input_tar_path, output_dir, max_split_size=0.2 * 1024 * 1024 * 1024):
-    os.makedirs(output_dir, exist_ok=True)
+def make_dir_get_classes(DATA_DIR):
+    IMAGES_TRAIN_DIR = os.path.join(os.path.dirname(DATA_DIR), 'split', 'images_train')
+    IMAGES_VAL_DIR = os.path.join(os.path.dirname(DATA_DIR), 'split', 'images_val')
+    IMAGES_TEST_DIR = os.path.join(os.path.dirname(DATA_DIR), 'split', 'images_test')
 
-    with tarfile.open(input_tar_path, 'r') as original_tar:
-        members = original_tar.getmembers()
-        current_split_size = 0
-        current_split_number = 0
-        current_split_name = os.path.join(output_dir, f'smaller_file_{current_split_number}.tar')
+    # Get class names from the directory structure
+    class_names = [d for d in os.listdir(DATA_DIR) if os.path.isdir(os.path.join(DATA_DIR, d))]
+    # Create directories if they don't exist
+    for dir_path in [IMAGES_TRAIN_DIR, IMAGES_VAL_DIR, IMAGES_TEST_DIR]:
+        print("Path:", dir_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
 
-        with tarfile.open(current_split_name, 'w') as split_tar:
-            for member in members:
-                if current_split_size + member.size <= max_split_size:
-                    split_tar.addfile(member, original_tar.extractfile(member))
-                    current_split_size += member.size
-                else:
-                    split_tar.close()
-                    current_split_number += 1
-                    current_split_name = os.path.join(output_dir, f'smaller_file_{current_split_number}.tar')
-                    current_split_size = 0
-                    split_tar = tarfile.open(current_split_name, 'w')
-                    split_tar.addfile(member, original_tar.extractfile(member))
-                    current_split_size += member.size
+    # Create classes.txt file
+    with open(os.path.join(os.path.dirname(IMAGES_TRAIN_DIR), 'classes.txt'), 'w') as f:
+        for class_name in class_names:
+            f.write(f"{class_name}\n")
+
+    print("Class names:", class_names)
+    return class_names, IMAGES_TRAIN_DIR, IMAGES_VAL_DIR, IMAGES_TEST_DIR
 
 
-def get_source_distribution(src_dir):
+def get_source_distribution(src_dir, class_names):
     class_distribution = {}
     total_images = 0
-    for class_name in os.listdir(src_dir):
-        if os.path.isdir(os.path.join(src_dir, class_name)):
-            images = glob.glob(os.path.join(src_dir, class_name, '*.*'))
-            class_distribution[class_name] = len(images)
-            total_images += len(images)
+    for class_name in class_names:
+        assert os.path.exists(os.path.join(src_dir, class_name))
+        images = glob.glob(os.path.join(src_dir, class_name, '*.*'))
+        class_distribution[class_name] = len(images)
+        total_images += len(images)
     return class_distribution, total_images
 
+# Get and print source distribution
+def print_source_distribution(DATA_DIR, class_names):
+    source_distribution, source_total = get_source_distribution(DATA_DIR, class_names)
+    print("\nOriginal Source Dataset Distribution:")
+    print(f"{'Class':<15} {'Count':<10} {'Percentage':<10}")
+    print("-" * 35)
+    for class_name, count in source_distribution.items():
+        percentage = count / source_total * 100
+        print(f"{class_name:<15} {count:<10} {percentage:.2f}%")
+    print(f"{'Total':<15} {source_total:<10} 100.00%")
 
-def split_and_copy(src_dir, train_dir, val_dir, test_dir, train_ratio=0.7, val_ratio=0.15):
+
+# Function to split and copy images
+def split_and_copy(class_names, src_dir, train_dir, val_dir, test_dir, train_ratio=0.7, val_ratio=0.15):
     class_distribution = defaultdict(lambda: defaultdict(int))
     total_images = 0
 
-    class_names = [d for d in os.listdir(src_dir) if os.path.isdir(os.path.join(src_dir, d))]
     for class_name in class_names:
         images = glob.glob(os.path.join(src_dir, class_name, '*.*'))
         total_images += len(images)
@@ -75,26 +87,9 @@ def split_and_copy(src_dir, train_dir, val_dir, test_dir, train_ratio=0.7, val_r
     return class_distribution, total_images
 
 
-def prepare_dataset(src_dir, train_dir, val_dir, test_dir):
-    class_names = [d for d in os.listdir(src_dir) if os.path.isdir(os.path.join(src_dir, d))]
-
-    for dir_path in [train_dir, val_dir, test_dir]:
-        os.makedirs(dir_path, exist_ok=True)
-
-    with open(os.path.join(os.path.dirname(train_dir), 'classes.txt'), 'w') as f:
-        for class_name in class_names:
-            f.write(f"{class_name}\n")
-
-    source_distribution, source_total = get_source_distribution(src_dir)
-    print("\nOriginal Source Dataset Distribution:")
-    print(f"{'Class':<15} {'Count':<10} {'Percentage':<10}")
-    print("-" * 35)
-    for class_name, count in source_distribution.items():
-        percentage = count / source_total * 100
-        print(f"{class_name:<15} {count:<10} {percentage:.2f}%")
-    print(f"{'Total':<15} {source_total:<10} 100.00%")
-
-    class_distribution, total_images = split_and_copy(src_dir, train_dir, val_dir, test_dir)
+def prepare_dataset(class_names, source_dir, train_dir, val_dir, test_dir):
+    # Split the dataset
+    class_distribution, total_images = split_and_copy(class_names, source_dir, train_dir, val_dir, test_dir)
 
     print("\nClass Distribution:")
     print(f"{'Class':<15} {'Train':<20} {'Val':<20} {'Test':<20} {'Total':<10}")
@@ -118,6 +113,7 @@ def prepare_dataset(src_dir, train_dir, val_dir, test_dir):
                   f"{test_count:<10} ({test_count / total_count:.1%}) "
                   f"{total_count:<10}")
 
+    # Count images in each split
     train_count = sum(class_distribution[c]['train'] for c in class_names)
     val_count = sum(class_distribution[c]['val'] for c in class_names)
     test_count = sum(class_distribution[c]['test'] for c in class_names)
@@ -132,3 +128,59 @@ def prepare_dataset(src_dir, train_dir, val_dir, test_dir):
             print(f"- {class_name}")
 
     print('\nDataset preparation completed.')
+
+def create_tar_gz(source_dir, output_file, files_to_include):
+    with tarfile.open(output_file, "w:gz") as tar:
+        for file in files_to_include:
+            tar.add(os.path.join(source_dir, file), arcname=file)
+
+def process_tar(main_data_dir):
+    # Define other necessary paths
+    split_dir = os.path.join(main_data_dir, "split")
+    split_tar_dir = os.path.join(main_data_dir, "split_tar")
+
+    # Create the split_tar directory if it doesn't exist
+    os.makedirs(split_tar_dir, exist_ok=True)
+
+    # Create tar.gz files
+    create_tar_gz(split_dir, os.path.join(split_tar_dir, "classification_train.tar.gz"), ["images_train", "classes.txt"])
+    create_tar_gz(split_dir, os.path.join(split_tar_dir, "classification_val.tar.gz"), ["images_val", "classes.txt"])
+    create_tar_gz(split_dir, os.path.join(split_tar_dir, "classification_test.tar.gz"), ["images_test", "classes.txt"])
+
+    # Define dataset paths
+    train_dataset_path = os.path.join(split_tar_dir, "classification_train.tar.gz")
+    eval_dataset_path = os.path.join(split_tar_dir, "classification_val.tar.gz")
+    test_dataset_path = os.path.join(split_tar_dir, "classification_test.tar.gz")
+
+    print(f"Train dataset path: {train_dataset_path}")
+    print(f"Evaluation dataset path: {eval_dataset_path}")
+    print(f"Test dataset path: {test_dataset_path}")
+
+    return train_dataset_path, eval_dataset_path, test_dataset_path
+
+
+def create_and_upload_datasets(base_url, headers, train_dataset_path, eval_dataset_path, test_dataset_path, model_name = "TODO"):
+
+    # Create and upload train dataset
+    train_dataset_id = create_dataset(base_url, headers)
+    update_dataset(base_url, headers, train_dataset_id, "Siemens Train Dataset", "My train dataset")
+    upload_dataset(base_url, headers, train_dataset_id, train_dataset_path)
+
+    # Create and upload eval dataset
+    eval_dataset_id = create_dataset(base_url, headers)
+    update_dataset(base_url, headers, eval_dataset_id, "Siemens Eval dataset", "Eval dataset")
+    upload_dataset(base_url, headers, eval_dataset_id, eval_dataset_path)
+
+    # Create and upload test dataset
+    test_dataset_id = create_dataset(base_url, headers)
+    upload_dataset(base_url, headers, test_dataset_id, test_dataset_path)
+
+    # List all datasets
+    endpoint = f"{base_url}/datasets"
+    response = requests.get(endpoint, headers=headers)
+    assert response.status_code in (200, 201)
+    print("id\t\t\t\t\t type\t\t\t format\t\t name")
+    for rsp in response.json():
+        print(rsp["id"], "\t", rsp["type"], "\t", rsp["format"], "\t\t", rsp["name"])
+
+    return train_dataset_id, eval_dataset_id, test_dataset_id

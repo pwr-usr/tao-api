@@ -1,96 +1,73 @@
 from config import *
-from dataset_utils import prepare_dataset, split_tar_file
-from api_utils import get_user_token
-from model_actions import *
-from utils import *
+import dataset_utils
+import api_utils
+import json
+import train
+import eval_retrain
+import os
 
 def main():
-    # Setup
-    user_id, token = get_user_token(HOST_URL, NGC_API_KEY)
-    base_url = f"{HOST_URL}/api/v1/users/{user_id}"
-    headers = {"Authorization": f"Bearer {token}"}
-    print(base_url, headers)
-    # Prepare dataset
-    create_work_dir(WORKDIR)
+    print(HOST_URL)
 
-    prepare_dataset(DATA_DIR, f"{DATA_DIR}/split/images_train", f"{DATA_DIR}/split/images_val",
-                    f"{DATA_DIR}/split/images_test")
+    # Log in
+    base_url, headers = api_utils.get_url_headers(HOST_URL, NGC_API_KEY)
+    print("login successful")
+    print("Work dir:", WORKDIR)
+
+    # Split and move files
+    class_names, train_dir, val_dir, test_dir = dataset_utils.make_dir_get_classes(DATA_DIR)
+    dataset_utils.print_source_distribution(DATA_DIR, class_names)
+    dataset_utils.prepare_dataset(class_names, DATA_DIR, train_dir, val_dir, test_dir)
 
     # Create tar files
-    split_tar_dir = os.path.join(os.path.dirname(DATA_DIR), 'split_tar')
-    os.makedirs(split_tar_dir, exist_ok=True)
-    os.system(f'tar -C {DATA_DIR}/split/ -czf {split_tar_dir}/classification_train.tar.gz images_train classes.txt')
-    os.system(f'tar -C {DATA_DIR}/split/ -czf {split_tar_dir}/classification_val.tar.gz images_val classes.txt')
-    os.system(f'tar -C {DATA_DIR}/split/ -czf {split_tar_dir}/classification_test.tar.gz images_test classes.txt')
+    main_data_dir = os.path.join(os.path.dirname(DATA_DIR))
+    print("The zipped file should be in a folder called split_tar in main_data_dir, if not existing, create it")
+    train_dataset_path, eval_dataset_path, test_dataset_path = dataset_utils.process_tar(main_data_dir)
 
-    # Create and upload datasets
-    train_dataset_id = create_dataset(base_url, headers, "image_classification", DS_FORMAT)
-    eval_dataset_id = create_dataset(base_url, headers, "image_classification", DS_FORMAT)
-    test_dataset_id = create_dataset(base_url, headers, "image_classification", DS_FORMAT)
+    # Upload  dataset
+    train_dataset_id, eval_dataset_id, test_dataset_id = dataset_utils.create_and_upload_datasets(
+        base_url, headers, train_dataset_path, eval_dataset_path, test_dataset_path, model_name="TODO")
 
-    update_dataset(base_url, headers, train_dataset_id, "Siemens Train Dataset", "My train dataset")
-    update_dataset(base_url, headers, eval_dataset_id, "Siemens Eval dataset", "S eval dataset")
+    # Create experiment and associate datasets
+    experiment_id = api_utils.create_experiment_and_associate_datasets(
+        base_url, headers, train_dataset_id, eval_dataset_id, test_dataset_id)
 
-    for dataset_id, dataset_path in [
-        (train_dataset_id, f"{split_tar_dir}/classification_train.tar.gz"),
-        (eval_dataset_id, f"{split_tar_dir}/classification_val.tar.gz"),
-        (test_dataset_id, f"{split_tar_dir}/classification_test.tar.gz")
-    ]:
-        output_dir = os.path.join(os.path.dirname(dataset_path), MODEL_NAME, dataset_id)
-        split_tar_file(dataset_path, output_dir)
-        for tar_file in os.listdir(output_dir):
-            upload_dataset(base_url, headers, dataset_id, os.path.join(output_dir, tar_file))
-
-    # Create experiment
-    experiment_id = create_experiment(base_url, headers, MODEL_NAME, ENCODE_KEY, CHECKPOINT_CHOOSE_METHOD)
-
-    # Assign datasets
-    assign_datasets(base_url, headers, experiment_id, train_dataset_id, eval_dataset_id, test_dataset_id)
-
-    # Set AutoML config if enabled
+    # Get AutoML specs if enabled
     if AUTOML_ENABLED:
-        automl_config = {
-            "automl_enabled": AUTOML_ENABLED,
-            "automl_algorithm": AUTOML_ALGORITHM,
-            "metric": "kpi",
-            "automl_max_recommendations": 20,
-            "automl_R": 15,
-            "automl_nu": 4,
-            "epoch_multiplier": 0.3,
-            "override_automl_disabled_params": False,
-            "automl_add_hyperparameters": "[]",
-            "automl_remove_hyperparameters": "[]"
-        }
-        set_automl_config(base_url, headers, experiment_id, automl_config)
+        automl_specs = api_utils.get_automl_specs(base_url, headers, experiment_id)
+        print(json.dumps(automl_specs, sort_keys=True, indent=4))
 
-    # Run actions
-    actions = ["train", "evaluate", "export", "gen_trt_engine", "inference"]
-    for action in actions:
-        specs = get_default_specs(base_url, headers, experiment_id, action)
+    # Train model
+    job_map = {}
+    response = train.set_automl_params(base_url, headers, experiment_id)
+    train_specs = train.set_train_specs(base_url, headers, experiment_id, class_names)
+    job_map = train.training_run(base_url, headers, experiment_id, train_specs, job_map)
 
-        if action == "train":
-            specs["dataset"]["num_classes"] = len(os.listdir(f"{DATA_DIR}/split/images_train"))
-            specs["train"]["num_epochs"] = 80
-            specs["gpus"] = 1
-        elif action == "export":
-            pass  # No changes needed for export specs
-        elif action == "gen_trt_engine":
-            specs["gen_trt_engine"]["tensorrt"]["data_type"] = "int8"
+    # Evaluate
+    job_map = eval_retrain.evaluate(base_url, headers, experiment_id, class_names, job_map)
 
-        parent_job_id = JOB_MAP.get(f"{'train' if action != 'train' else ''}_{MODEL_NAME}")
-        job_id = run_action(base_url, headers, experiment_id, parent_job_id, action, specs)
-        JOB_MAP[f"{action}_{MODEL_NAME}"] = job_id
+    # Prune
+    job_map = eval_retrain.prune(base_url, headers, experiment_id, class_names, job_map)
 
-        status = monitor_job(base_url, headers, experiment_id, job_id)
-        print(f"{action.capitalize()} job completed with status: {status}")
+    # Retrain
+    job_map = eval_retrain.retrain(base_url, headers, experiment_id, class_names, job_map)
 
-        if DOWNLOAD_JOBS and action in ["train", "inference", "inference_trt"]:
-            download_job(base_url, headers, experiment_id, job_id, WORKDIR)
+    # Evaluate after retrain
+    job_map = eval_retrain.evaluate_after_retrain(base_url, headers, experiment_id, job_map)
+
+
+
+
+
+
+
+
+
 
     # Clean up
-    delete_experiment(base_url, headers, experiment_id)
-    for dataset_id in [train_dataset_id, eval_dataset_id, test_dataset_id]:
-        delete_dataset(base_url, headers, dataset_id)
+    # delete_experiment(base_url, headers, experiment_id)
+    # for dataset_id in [train_dataset_id, eval_dataset_id, test_dataset_id]:
+    #     delete_dataset(base_url, headers, dataset_id)
 
 
 if __name__ == "__main__":
