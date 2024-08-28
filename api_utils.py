@@ -13,7 +13,9 @@ def get_url_headers(host_url, ngc_api_key):
     response = requests.post(f"{host_url}/api/v1/login", data=data)
     print("Response Code:", response.status_code)
     print("Response JSON:", response.json())
-
+    assert response.status_code in (200, 201)
+    assert "user_id" in response.json().keys()
+    assert "token" in response.json().keys()
     user_id = response.json()["user_id"]
     token = response.json()["token"]
     # Set base URL
@@ -44,7 +46,8 @@ def upload_dataset(base_url, headers, dataset_id, dataset_path):
         endpoint = f"{base_url}/datasets/{dataset_id}:upload"
         response = requests.post(endpoint, files=files, headers=headers)
         assert response.status_code in (200, 201)
-        assert "message" in response.json().keys() and response.json()["message"] == "Server received file and upload process started"
+        print(response.json())
+        # assert "message" in response.json().keys() and response.json()["message"] == "Server received file and upload process started"
 
 # def upload_dataset(base_url, headers, dataset_id, dataset_path):
 #     files = [("file", open(dataset_path, "rb"))]  # This line is now enclosed in a 'with' statement

@@ -163,6 +163,7 @@ def create_and_upload_datasets(base_url, headers, train_dataset_path, eval_datas
 
     # Create and upload train dataset
     train_dataset_id = create_dataset(base_url, headers)
+    print(train_dataset_id, train_dataset_path)
     update_dataset(base_url, headers, train_dataset_id, "Siemens Train Dataset", "My train dataset")
     upload_dataset(base_url, headers, train_dataset_id, train_dataset_path)
 

@@ -8,9 +8,9 @@ PRETRAINED_MODEL_MAP = {
     "classification_tf1": "pretrained_classification:resnet18",
     "classification_tf2": "pretrained_classification_tf2:efficientnet_b0"
 }
-AUTOML_MAX_RECOMMENDATIONS = 20
-NUM_EPOCH = 40
-RETRAIN_EPOCH = 40
+AUTOML_MAX_RECOMMENDATIONS = 1
+NUM_EPOCH = 1
+RETRAIN_EPOCH = 1
 
 
 
