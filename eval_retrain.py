@@ -4,24 +4,25 @@ from config import MODEL_NAME, RETRAIN_EPOCH, NUM_GPU
 def evaluate(base_url, headers, experiment_id, class_names, job_map):
     # Get model handler parameters
     endpoint = f"{base_url}/experiments/{experiment_id}"
+    print(f"Evaluate get model handler endpoint {endpoint}")
     response = requests.get(endpoint, headers=headers)
     assert response.status_code in (200, 201)
     assert response.json()
 
+    print(f"Evaluate get model handler response {response.json()}")
+
     model_parameters = response.json()
     update_checkpoint_choosing = {}
-    update_checkpoint_choosing["checkpoint_choose_method"] = model_parameters["checkpoint_choose_method"]
     update_checkpoint_choosing["checkpoint_epoch_number"] = model_parameters["checkpoint_epoch_number"]
     # Change the method by which checkpoint from the parent action is chosen, when parent action is a train/retrain action.
     # Example for evaluate action below, can be applied in the same way for other actions too
     update_checkpoint_choosing[
-        "checkpoint_choose_method"] = "latest_model"  # Choose between best_model/latest_model/from_epoch_number
+        "checkpoint_choose_method"] = "best_model"  # Choose between best_model/latest_model/from_epoch_number
     # If from_epoch_number is chosen then assign the epoch number to the dictionary key in the format 'from_epoch_number{train_job_id}'
     # update_checkpoint_choosing["checkpoint_epoch_number"]["from_epoch_number_28a2754e-50ef-43a8-9733-98913776dd90"] = 3
     data = json.dumps(update_checkpoint_choosing)
 
-    endpoint = f"{base_url}/experiments/{experiment_id}"
-
+    print(f"Evaluate patch data: {data}")
     response = requests.patch(endpoint, data=data, headers=headers)
     assert response.status_code in (200, 201)
     # Get default spec schema
@@ -37,30 +38,29 @@ def evaluate(base_url, headers, experiment_id, class_names, job_map):
     parent = job_map["train_" + MODEL_NAME]
     action = "evaluate"
     data = json.dumps({"parent_job_id": parent, "action": action, "specs": eval_specs})
-
+    print("Updated Specs", data)
     endpoint = f"{base_url}/experiments/{experiment_id}/jobs"
-
     response = requests.post(endpoint, data=data, headers=headers)
     assert response.status_code in (200, 201)
     assert response.json()
-
+    print("Evaluate done")
 
     job_map["evaluate_" + MODEL_NAME] = response.json()
 
     # Monitor job status by repeatedly running this cell
     job_id = job_map["evaluate_" + MODEL_NAME]
-    endpoint = f"{base_url}/experiments/{experiment_id}/jobs/{job_id}"
-
-    while True:
-        # clear_output(wait=True)
-        response = requests.get(endpoint, headers=headers)
-        assert response.status_code in (200, 201)
-
-        assert "status" in response.json().keys() and response.json().get("status") != "Error"
-        if response.json().get("status") in ["Done", "Error", "Canceled"] or response.status_code not in (200, 201):
-            break
-        time.sleep(2)
-    return job_map
+    # endpoint = f"{base_url}/experiments/{experiment_id}/jobs/{job_id}"
+    #
+    # while True:
+    #     # clear_output(wait=True)
+    #     response = requests.get(endpoint, headers=headers)
+    #     assert response.status_code in (200, 201)
+    #
+    #     assert "status" in response.json().keys() and response.json().get("status") != "Error"
+    #     if response.json().get("status") in ["Done", "Error", "Canceled"] or response.status_code not in (200, 201):
+    #         break
+    #     time.sleep(2)
+    # return job_map
 
 def prune(base_url, headers, experiment_id, class_names, job_map):
     # Get default spec schema

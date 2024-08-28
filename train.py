@@ -48,8 +48,8 @@ def training_run(base_url, headers, experiment_id, train_specs, job_map):
     assert response.status_code in (200, 201)
     assert response.json()
 
-    print(response)
-    print(response.json())
+    # print(response)
+    # print(response.json())
 
     job_map["train_" + MODEL_NAME] = response.json()
     return job_map

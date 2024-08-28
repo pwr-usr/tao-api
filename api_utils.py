@@ -23,7 +23,7 @@ def get_url_headers(host_url, ngc_api_key):
     print("API Calls will be forwarded to", base_url)
 
     headers = {"Authorization": f"Bearer {token}"}
-    return base_url, headers
+    return base_url, headers, user_id
 
 
 def create_dataset(base_url, headers):

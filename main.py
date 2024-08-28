@@ -5,12 +5,13 @@ import json
 import train
 import eval_retrain
 import os
+import export
 
 def main():
     print(HOST_URL)
 
     # Log in
-    base_url, headers = api_utils.get_url_headers(HOST_URL, NGC_API_KEY)
+    base_url, headers, user_id = api_utils.get_url_headers(HOST_URL, NGC_API_KEY)
     print("login successful")
     print("Work dir:", WORKDIR)
 
@@ -67,8 +68,10 @@ def main():
     print("Re-evaluation Done", job_map)
 
 
+    # Export model
+    job_map = export.run_export(base_url, headers, experiment_id, job_map)
 
-
+    print(f"All work done, User Id: {user_id}\nExperiment Id: {experiment_id}\n Job map: {job_map}\n ")
 
 
 
