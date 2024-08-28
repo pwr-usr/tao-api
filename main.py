@@ -73,7 +73,11 @@ def main():
 
     print(f"All work done, User Id: {user_id}\nExperiment Id: {experiment_id}\n Job map: {job_map}\n ")
 
-
+    # Download model to loca
+    remote_path = f'/mnt/nfs_share/default-nvtl-api-pvc/users/{user_id}/experiments/{experiment_id}/{job_map["export_" + MODEL_NAME]}/model.onnx'
+    command = f"sshpass -p '111' scp {USERNAME}@{HOST}:{remote_path} /tmp"
+    os.system(command)
+    print(f"File downloaded to local")
 
 
 

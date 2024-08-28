@@ -49,18 +49,19 @@ def evaluate(base_url, headers, experiment_id, class_names, job_map):
 
     # Monitor job status by repeatedly running this cell
     job_id = job_map["evaluate_" + MODEL_NAME]
-    # endpoint = f"{base_url}/experiments/{experiment_id}/jobs/{job_id}"
-    #
-    # while True:
-    #     # clear_output(wait=True)
-    #     response = requests.get(endpoint, headers=headers)
-    #     assert response.status_code in (200, 201)
-    #
-    #     assert "status" in response.json().keys() and response.json().get("status") != "Error"
-    #     if response.json().get("status") in ["Done", "Error", "Canceled"] or response.status_code not in (200, 201):
-    #         break
-    #     time.sleep(2)
-    # return job_map
+    endpoint = f"{base_url}/experiments/{experiment_id}/jobs/{job_id}"
+
+    while True:
+        response = requests.get(endpoint, headers=headers)
+        assert response.status_code in (200, 201)
+        # print(response)
+        # print(response.json())
+        print("Eval status: ", response.json().get("status"))
+        assert "status" in response.json().keys() and response.json().get("status") != "Error"
+        if response.json().get("status") in ["Done", "Error", "Canceled"] or response.status_code not in (200, 201):
+            break
+        time.sleep(15)
+    return job_map
 
 def prune(base_url, headers, experiment_id, class_names, job_map):
     # Get default spec schema
@@ -82,6 +83,22 @@ def prune(base_url, headers, experiment_id, class_names, job_map):
     assert response.status_code in (200, 201)
     assert response.json()
     job_map["prune_" + MODEL_NAME] = response.json()
+
+    # Monitor job status by repeatedly running this cell (prune)
+    job_id = job_map["prune_" + MODEL_NAME]
+    endpoint = f"{base_url}/experiments/{experiment_id}/jobs/{job_id}"
+
+    while True:
+        response = requests.get(endpoint, headers=headers)
+        assert response.status_code in (200, 201)
+        # print(response)
+        # print(response.json())
+        assert "status" in response.json().keys() and response.json().get("status") != "Error"
+        print("Prune status: ", response.json().get("status"))
+        if response.json().get("status") in ["Done","Error", "Canceled"] or response.status_code not in (200,201):
+            break
+        time.sleep(15)
+
     return job_map
 
 def retrain(base_url, headers, experiment_id, class_names, job_map):
@@ -108,9 +125,23 @@ def retrain(base_url, headers, experiment_id, class_names, job_map):
     response = requests.post(endpoint, data=data, headers=headers)
     assert response.status_code in (200, 201)
     assert response.json()
-
-
     job_map["retrain_" + MODEL_NAME] = response.json()
+
+
+    # Monitor job status by repeatedly running this cell (retrain)
+    job_id = job_map["retrain_" + MODEL_NAME]
+    endpoint = f"{base_url}/experiments/{experiment_id}/jobs/{job_id}"
+
+    while True:
+        response = requests.get(endpoint, headers=headers)
+        assert response.status_code in (200, 201)
+        # print(response)
+        # print(response.json())
+        assert "status" in response.json().keys() and response.json().get("status") != "Error"
+        print("Retrain status: ", response.json().get("status"))
+        if response.json().get("status") in ["Done","Error", "Canceled"] or response.status_code not in (200,201):
+            break
+        time.sleep(15)
     return job_map
 
 def evaluate_after_retrain(base_url, headers, experiment_id, job_map):
@@ -135,4 +166,19 @@ def evaluate_after_retrain(base_url, headers, experiment_id, job_map):
     assert response.json()
     job_map["eval_retrain_" + MODEL_NAME] = response.json()
 
+
+    # Monitor job status by repeatedly running this cell (evaluate)
+    job_id = job_map["eval_retrain_" + MODEL_NAME]
+    endpoint = f"{base_url}/experiments/{experiment_id}/jobs/{job_id}"
+
+    while True:
+        response = requests.get(endpoint, headers=headers)
+        assert response.status_code in (200, 201)
+        # print(response)
+        # print(response.json())
+        assert "status" in response.json().keys() and response.json().get("status") != "Error"
+        print("Evaluate after retrain status", response.json().get("status"))
+        if response.json().get("status") in ["Done","Error", "Canceled"] or response.status_code not in (200,201):
+            break
+        time.sleep(15)
     return job_map

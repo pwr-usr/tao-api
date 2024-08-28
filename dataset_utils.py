@@ -163,7 +163,7 @@ def create_and_upload_datasets(base_url, headers, train_dataset_path, eval_datas
 
     # Create and upload train dataset
     train_dataset_id = create_dataset(base_url, headers)
-    print(train_dataset_id, train_dataset_path)
+    # print(train_dataset_id, train_dataset_path)
     update_dataset(base_url, headers, train_dataset_id, "Siemens Train Dataset", "My train dataset")
     upload_dataset(base_url, headers, train_dataset_id, train_dataset_path)
 
@@ -176,12 +176,12 @@ def create_and_upload_datasets(base_url, headers, train_dataset_path, eval_datas
     test_dataset_id = create_dataset(base_url, headers)
     upload_dataset(base_url, headers, test_dataset_id, test_dataset_path)
 
-    # List all datasets
-    endpoint = f"{base_url}/datasets"
-    response = requests.get(endpoint, headers=headers)
-    assert response.status_code in (200, 201)
-    print("id\t\t\t\t\t type\t\t\t format\t\t name")
-    for rsp in response.json():
-        print(rsp["id"], "\t", rsp["type"], "\t", rsp["format"], "\t\t", rsp["name"])
+    # # List all datasets
+    # endpoint = f"{base_url}/datasets"
+    # response = requests.get(endpoint, headers=headers)
+    # assert response.status_code in (200, 201)
+    # print("id\t\t\t\t\t type\t\t\t format\t\t name")
+    # for rsp in response.json():
+    #     print(rsp["id"], "\t", rsp["type"], "\t", rsp["format"], "\t\t", rsp["name"])
 
     return train_dataset_id, eval_dataset_id, test_dataset_id

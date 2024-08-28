@@ -9,7 +9,7 @@ from IPython.display import clear_output
 def get_url_headers(host_url, ngc_api_key):
     # Exchange NGC_API_KEY for JWT
     data = json.dumps({"ngc_api_key": ngc_api_key})
-    print(data)
+    # print(data)
     response = requests.post(f"{host_url}/api/v1/login", data=data)
     print("Response Code:", response.status_code)
     print("Response JSON:", response.json())
@@ -46,7 +46,7 @@ def upload_dataset(base_url, headers, dataset_id, dataset_path):
         endpoint = f"{base_url}/datasets/{dataset_id}:upload"
         response = requests.post(endpoint, files=files, headers=headers)
         assert response.status_code in (200, 201)
-        print(response.json())
+        # print(response.json())
         # assert "message" in response.json().keys() and response.json()["message"] == "Server received file and upload process started"
 
 # def upload_dataset(base_url, headers, dataset_id, dataset_path):
@@ -72,9 +72,9 @@ def create_experiment_and_associate_datasets(base_url, headers, train_dataset_id
     params = {"network_arch": MODEL_NAME}
     response = requests.get(endpoint, params=params, headers=headers)
     assert response.status_code in (200, 201)
-    print("model id\t\t\t     network architecture")
-    for rsp in response.json():
-        print(rsp["name"], rsp["id"], rsp["network_arch"])
+    # print("model id\t\t\t     network architecture")
+    # for rsp in response.json():
+    #     print(rsp["name"], rsp["id"], rsp["network_arch"])
 
     # Associate datasets with experiment
     dataset_information = {

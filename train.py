@@ -15,7 +15,7 @@ def set_automl_params(base_url, headers, experiment_id):
         response = requests.patch(endpoint, data=data, headers=headers)
         assert response.status_code in (200, 201)
 
-        print(json.dumps(response.json(), sort_keys=True, indent=4))
+        # print(json.dumps(response.json(), sort_keys=True, indent=4))
         return response
 
 def set_train_specs(base_url, headers, experiment_id, class_names):
@@ -48,10 +48,26 @@ def training_run(base_url, headers, experiment_id, train_specs, job_map):
     assert response.status_code in (200, 201)
     assert response.json()
 
-    # print(response)
-    # print(response.json())
-
     job_map["train_" + MODEL_NAME] = response.json()
+
+    job_id = job_map["train_" + MODEL_NAME]
+    endpoint = f"{base_url}/experiments/{experiment_id}/jobs/{job_id}"
+    while True:
+        response = requests.get(endpoint, headers=headers)
+
+        if "error_desc" in response.json().keys() and response.json()["error_desc"] in (
+        "Job trying to retrieve not found", "No AutoML run found"):
+            print("Job is being created")
+            time.sleep(5)
+            continue
+        # assert response.status_code in (200, 201)
+        # print(json.dumps(response.json(), sort_keys=True, indent=4))
+        print("Waiting in train")
+        assert "status" in response.json().keys() and response.json().get("status") != "Error"
+        if response.json().get("status") in ["Done", "Error", "Canceled"] or response.status_code not in (200, 201):
+            break
+        time.sleep(15)
+
     return job_map
 
 def training_monitor(base_url, headers, experiment_id, job_map, ):
@@ -68,8 +84,8 @@ def training_monitor(base_url, headers, experiment_id, job_map, ):
             time.sleep(5)
             continue
         # assert response.status_code in (200, 201)
-        print(response)
-        print(json.dumps(response.json(), sort_keys=True, indent=4))
+        # print(response)
+        # print(json.dumps(response.json(), sort_keys=True, indent=4))
         assert "status" in response.json().keys() and response.json().get("status") != "Error"
         if response.json().get("status") in ["Done", "Error", "Canceled"] or response.status_code not in (200, 201):
             break

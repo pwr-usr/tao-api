@@ -27,3 +27,23 @@ def run_export(base_url, headers, experiment_id, job_map):
     print("Export Status Code:", response.status_code)
     job_map["export_" + MODEL_NAME] = response.json()
     return job_map
+
+# import paramiko
+# from scp import SCPClient
+#
+# def create_scp_client(host, port, username, password):
+#     # Create an SSH client
+#     ssh = paramiko.SSHClient()
+#     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+#     ssh.connect(host, port=port, username=username, password=password)
+#
+#     # Create an SCP client
+#     scp = SCPClient(ssh.get_transport())
+#     return scp
+#
+# def download_file(scp, remote_path, local_path):
+#     # Download the file
+#     scp.get(remote_path, local_path)
+
+
+

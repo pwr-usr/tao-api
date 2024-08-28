@@ -12,6 +12,13 @@ AUTOML_MAX_RECOMMENDATIONS = 1
 NUM_EPOCH = 1
 RETRAIN_EPOCH = 1
 
+# SCP config
+# Define your connection details
+HOST = '192.168.1.85'
+PORT = 80
+USERNAME = 'root'
+PASSWORD = '11'
+
 
 
 
